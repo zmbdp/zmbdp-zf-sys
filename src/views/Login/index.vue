@@ -166,7 +166,7 @@
         width="80"
         height="80"
       />
-      <h1 class="title">Hello，欢迎登录稚名不带撇通用脚手架</h1>
+      <h1 class="title">Hello，欢迎登录稚能安居后台<p>管理系统</p></h1>
       <el-form
         :model="loginForm"
         :rules="loginRules"

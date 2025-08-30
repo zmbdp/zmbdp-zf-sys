@@ -17,3 +17,6 @@ export * from './modules/user'
 
 // import { useUserStore } from './modules/user'
 // export { useUserStore }
+
+// 导出 house 模块下的所有成员
+export * from './modules/house'

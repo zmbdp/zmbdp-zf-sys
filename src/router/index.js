@@ -77,6 +77,27 @@ const router = createRouter({
               hidden: true
             }
           ]
+        },
+        {
+          // 房源管理
+          path: '/house',
+          component: () => import('@/views/House/index.vue'),
+          meta: {
+            title: '房源管理',
+            icon: 'house'
+          }
+        },
+        {
+          // 房源详情
+          path: '/house/:houseId',
+          component: () => import('@/views/House/Detail.vue'),
+          hidden: true
+        },
+        {
+          // 新增或编辑房源
+          path: '/house/addOrEdit/:houseId?',
+          component: () => import('@/views/House/AddOrEdit.vue'),
+          hidden: true
         }
       ]
     },
