@@ -36,10 +36,10 @@ export default defineConfig({
     proxy: {
       '/dev-api': {
         // 目前服务器地址
-        target: 'http://111.231.13.141:10030',
+        target: 'http://云服务器外网ip:80',
         changeOrigin: true, // 改变请求头的origin源，到达目标服务器的值target的值，而不是前端的请求路径
 
-        // 路径重写，如果不加rewrite，今后目标服务器收到的完整地址就是 http://47.108.58.48/dev-api/xxx,
+        // 路径重写，如果不加rewrite，今后目标服务器收到的完整地址就是 http://127.0.0.1/dev-api/xxx,
         // 由于目标目标服务器真实路径 没有 /dev-api，因此需要把这块给它去掉，这里用一个字符串 replace 方法，替换成空字符串即可
         rewrite: (path) => path.replace(/^\/dev-api/, '')
       }
