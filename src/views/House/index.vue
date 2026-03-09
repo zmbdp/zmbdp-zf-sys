@@ -1,11 +1,8 @@
 <script setup>
-  import { getHouseListApi } from '@/api/house'
+  import { getHouseListApi, getChildrenRegionApi } from '@/api/house'
   import { reactive, ref } from 'vue'
   import { HOUSE_STATUS_MAP, HOUSE_RENT_TYPE_MAP } from '@/constants'
-  import { useHouseStore } from '@/stores'
   import StatusOps from './components/StatusOps.vue'
-  const houseStore = useHouseStore()
-  houseStore.getCityListAction()
 
   const query = reactive({
     houseId: '',
@@ -17,6 +14,51 @@
     pageNo: 1,
     pageSize: 5
   })
+  
+  // 级联选择器的值
+  const cascaderValue = ref([])
+  
+  // 懒加载函数
+  const lazyLoad = async (node, resolve) => {
+    const { level, value } = node
+    
+    try {
+      let data
+      // level 0 表示根节点，加载省级数据
+      if (level === 0) {
+        data = await getChildrenRegionApi(null)
+      } else if (level === 1) {
+        // level 1 是省级，加载市级数据
+        data = await getChildrenRegionApi(value)
+      } else {
+        // level 2 及以上不再加载
+        resolve([])
+        return
+      }
+      
+      const nodes = data.map(item => ({
+        value: item.id,
+        label: item.name,
+        // level 1 是省级（可展开但不可选），level 2 是市级（可选且为叶子节点）
+        leaf: item.level === 2 // 市级为叶子节点，不再展开
+      }))
+      
+      resolve(nodes)
+    } catch (error) {
+      console.error('加载区域数据失败:', error)
+      resolve([])
+    }
+  }
+  
+  // 级联选择器变化时
+  const onCascaderChange = (value) => {
+    if (value && value.length > 0) {
+      // 可以选择任意层级进行筛选，取最后一级的ID
+      query.cityId = value[value.length - 1]
+    } else {
+      query.cityId = ''
+    }
+  }
 
   const houseList = ref([])
   const total = ref(null)
@@ -57,6 +99,8 @@
         query.cityId =
         query.communityName =
           ''
+      // 清空级联选择器
+      cascaderValue.value = []
       // 再请求
       getHouseList()
     }
@@ -127,18 +171,21 @@
           />
         </el-select>
       </el-form-item>
+      <div style="width: 100%; height: 0;"></div>
       <el-form-item label="所在城市">
-        <el-select
-          placeholder="请输入所在城市"
-          v-model="query.cityId"
-        >
-          <el-option
-            v-for="city in houseStore.cityList"
-            :key="city.id"
-            :value="city.id"
-            :label="city.fullName"
-          />
-        </el-select>
+        <el-cascader
+          v-model="cascaderValue"
+          :props="{ 
+            lazy: true,
+            lazyLoad: lazyLoad,
+            expandTrigger: 'hover',
+            emitPath: true,
+            checkStrictly: false
+          }"
+          @change="onCascaderChange"
+          placeholder="请选择城市"
+          clearable
+        />
       </el-form-item>
       <el-form-item label="所在小区">
         <el-input
