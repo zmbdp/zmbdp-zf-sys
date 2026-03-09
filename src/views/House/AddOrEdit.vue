@@ -7,7 +7,7 @@
     HOUSE_TAG_MAP,
     DEVICE_LIST_MAP
   } from '@/constants'
-  import { reactive, ref } from 'vue'
+  import { reactive, ref, computed, watch } from 'vue'
   import {
     getChildrenRegionApi,
     postHouseApi,
@@ -135,14 +135,55 @@
     ]
   }
 
-  const childrenRegion = ref([])
-  // 选择城市变化时
-  const onCityChange = async (cityId) => {
-    if (typeof cityId !== 'number') {
-      childrenRegion.value = []
-      return
+  // 用于级联选择器的值
+  const cascaderValue = ref([])
+  
+  // 存储区域信息，用于提交时获取经纬度等信息
+  const regionInfoMap = ref(new Map())
+
+  // 懒加载函数
+  const lazyLoad = async (node, resolve) => {
+    const { level, value } = node
+    
+    // level 0 表示根节点，加载省级数据
+    const parentId = level === 0 ? null : value
+    
+    try {
+      const data = await getChildrenRegionApi(parentId)
+      
+      // 存储区域信息
+      data.forEach(item => {
+        regionInfoMap.value.set(item.id, item)
+      })
+      
+      const nodes = data.map(item => ({
+        value: item.id,
+        label: item.name,
+        leaf: item.level === 3 // level 3 是区县级别，没有子节点
+      }))
+      
+      resolve(nodes)
+    } catch (error) {
+      console.error('加载区域数据失败:', error)
+      resolve([])
     }
-    childrenRegion.value = await getChildrenRegionApi(cityId)
+  }
+
+  // 级联选择器变化时
+  const onCascaderChange = (value) => {
+    if (value && value.length > 0) {
+      // 最后一级是区县ID
+      houseForm.regionId = value[value.length - 1]
+      // 倒数第二级是城市ID
+      if (value.length >= 2) {
+        houseForm.cityId = value[value.length - 2]
+      } else {
+        houseForm.cityId = value[0]
+      }
+    } else {
+      houseForm.cityId = ''
+      houseForm.regionId = ''
+    }
   }
 
   const houseStore = useHouseStore()
@@ -159,21 +200,21 @@
       if (!tagCodes.length) return ElMessage.error('请选择房源标签')
       if (!devices.length) return ElMessage.error('请选择设备列表')
       if (!images.length) return ElMessage.error('请上传房屋图片')
-      // 获取城市名称
-      const city = houseStore.cityList.find(
-        (item) => item.id === houseForm.cityId
-      )
-      // 获取区县名称及经纬度
-      const { name, longitude, latitude } = childrenRegion.value.find(
-        (item) => item.id === houseForm.regionId
-      )
-      console.log(`output-city`, city)
-      console.log(city.name)
+      
+      // 从 regionInfoMap 中获取城市和区县信息
+      const cityInfo = regionInfoMap.value.get(houseForm.cityId)
+      const regionInfo = regionInfoMap.value.get(houseForm.regionId)
+      
+      if (!cityInfo || !regionInfo) {
+        return ElMessage.error('请选择完整的城市和区县信息')
+      }
+      
+      const { name, longitude, latitude } = regionInfo
       // 调用新增或编辑房源接口
       await postHouseApi({
         ...houseForm,
         headImage: images[0],
-        cityName: city.name,
+        cityName: cityInfo.name,
         regionName: name,
         longitude,
         latitude
@@ -201,11 +242,7 @@
     // 根据 houseId 获取房源详情
     const resp = await getHouseDetailApi(houseId)
 
-    // 根据 resp.cityId 获取当前城市的区县列表
-    onCityChange(resp.cityId)
-
     // 根据后台响应的 resp 房源详情对象，给 houseForm 表单赋值（回显）
-
     Object.keys(resp).forEach((key) => {
       houseForm[key] = resp[key]
     })
@@ -216,6 +253,13 @@
     // 单独处理 tagCodes 和 devices 数组
     houseForm.tagCodes = resp.tags.map((item) => item.tagCode)
     houseForm.devices = resp.devices.map((item) => item.deviceCode)
+    
+    // 回显级联选择器的值（需要构建完整路径）
+    if (resp.cityId && resp.regionId) {
+      // 这里需要根据实际情况构建路径，假设是省-市-区三级
+      // 你可能需要调整这个逻辑来匹配你的实际层级
+      cascaderValue.value = [resp.cityId, resp.regionId]
+    }
   }
 </script>
 <script>
@@ -247,41 +291,24 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="4">
-            <el-form-item label="所在城市" prop="cityId">
-              <el-select
-                placeholder="请选择所在城市"
-                v-model="houseForm.cityId"
-                @change="onCityChange"
+          <el-col :span="6">
+            <el-form-item label="所在城市/区县" prop="cityId">
+              <el-cascader
+                v-model="cascaderValue"
+                :props="{ 
+                  lazy: true,
+                  lazyLoad: lazyLoad,
+                  expandTrigger: 'hover',
+                  emitPath: true
+                }"
+                @change="onCascaderChange"
+                placeholder="请选择城市和区县"
                 clearable
-              >
-                <el-option
-                  v-for="item in houseStore.cityList"
-                  :key="item.id"
-                  :label="item.fullName"
-                  :value="item.id"
-                />
-              </el-select>
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
-          <el-col :span="4">
-            <el-form-item label="所在区县" prop="regionId">
-              <el-select
-                placeholder="请选择所在区县"
-                clearable
-                v-model="houseForm.regionId"
-              >
-                <el-option
-                  v-for="item in childrenRegion"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
-                  clearable
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="4">
+          <el-col :span="6">
             <el-form-item label="小区名称" prop="communityName">
               <el-input
                 placeholder="请输入小区名称"

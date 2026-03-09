@@ -36,7 +36,8 @@ export default defineConfig({
     proxy: {
       '/dev-api': {
         // 目前服务器地址
-        target: 'http://云服务器外网ip:80',
+        // target: 'http://云服务器外网ip:80', // 部署线上
+        target: 'http://127.0.0.1:10030', // 本地开发
         changeOrigin: true, // 改变请求头的origin源，到达目标服务器的值target的值，而不是前端的请求路径
 
         // 路径重写，如果不加rewrite，今后目标服务器收到的完整地址就是 http://127.0.0.1/dev-api/xxx,
